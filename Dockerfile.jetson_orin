@@ -1,0 +1,177 @@
+# syntax=docker/dockerfile:1.3
+FROM nvcr.io/nvidia/l4t-ml:r35.2.1-py3
+# The l4t-pytorch docker image contains PyTorch and torchvision pre-installed 
+# in a Python 3 environment to get up & running quickly with PyTorch on Jetson. 
+# These containers support the following releases of JetPack for Jetson Nano, 
+# TX1/TX2, Xavier NX, AGX Xavier, AGX Orin, and Orin NX
+
+LABEL maintainer ana.milas@fer.hr
+
+# Set environment variables
+ARG HOME=/root
+
+# Install system dependencies
+# Install all the things to stop docker build from breaking
+RUN ln -fs /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && \
+    apt-get update && apt-get install -q -y \
+    git \
+    sudo \
+    lsb-release \
+    gnupg2 \
+    apt-utils \
+    dialog \
+    curl \
+    ca-certificates \
+    bzip2 \
+    libx11-6 \
+    tzdata && \
+    dpkg-reconfigure --frontend noninteractive tzdata
+
+# Install Archiconda
+RUN wget https://github.com/Archiconda/build-tools/releases/download/0.2.3/Archiconda3-0.2.3-Linux-aarch64.sh && \
+    bash Archiconda3-0.2.3-Linux-aarch64.sh -b -p $HOME/archiconda3 && \
+    rm Archiconda3-0.2.3-Linux-aarch64.sh
+
+RUN echo '\n# set environment variable for conda' >> ~/.bashrc
+RUN echo ". ~/archiconda3/etc/profile.d/conda.sh" >> ~/.bashrc
+RUN echo 'export PATH=$PATH:~/archiconda3/bin' >> ~/.bashrc
+RUN echo -e '\n# set environment variable for pip' >> ~/.bashrc
+RUN echo 'export OPENBLAS_CORETYPE=ARMV8' >> ~/.bashrc
+RUN /bin/bash -ic "source ~/.bashrc"
+
+
+# Create conda env and activate it
+ENV PYTHON_VERSION=3.8
+
+RUN . /root/archiconda3/etc/profile.d/conda.sh && \
+    conda create -y -n mmdeploy python=${PYTHON_VERSION} && \
+    conda activate mmdeploy
+
+ENV PATH=$HOME/archiconda3/bin:$PATH
+ENV OPENBLAS_CORETYPE=ARMV8
+# RUN conda --version 
+# Pytorch 1.13 and torchvision 0.14.0 (see compatible versions https://pypi.org/project/torchvision/)
+WORKDIR $HOME/
+RUN wget https://developer.download.nvidia.com/compute/redist/jp/v502/pytorch/torch-1.13.0a0+d0d6b1f2.nv22.10-cp38-cp38-linux_aarch64.whl
+RUN pip3 install torch-1.13.0a0+d0d6b1f2.nv22.10-cp38-cp38-linux_aarch64.whl
+RUN sudo apt-get install -q -y \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpython3-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libopenblas-base \
+    libopenmpi-dev  \
+    libopenblas-dev
+
+RUN pip install --upgrade pip
+RUN git clone --branch v0.14.0 https://github.com/pytorch/vision torchvision
+ENV BUILD_VERSION=0.14.0
+RUN cd torchvision/ && \
+    pip install -e .
+
+# CMake
+RUN apt-get update
+RUN apt-get purge cmake -y
+# install prebuilt binary
+ENV CMAKE_VER=3.23.1
+ENV ARCH=aarch64
+RUN wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}-linux-${ARCH}.sh
+RUN chmod +x cmake-${CMAKE_VER}-linux-${ARCH}.sh
+RUN ./cmake-${CMAKE_VER}-linux-${ARCH}.sh --prefix=/usr --skip-license
+RUN cmake --version
+
+# Create conda environment
+RUN . /root/archiconda3/etc/profile.d/conda.sh && \
+    conda deactivate && \
+    conda activate mmdeploy
+
+# Copy the tensorrt package to the conda environment created before
+RUN cp -r /usr/lib/python${PYTHON_VERSION}/dist-packages/tensorrt* $HOME/archiconda3/envs/mmdeploy/lib/python${PYTHON_VERSION}/site-packages/
+
+RUN . /root/archiconda3/etc/profile.d/conda.sh && \
+    conda deactivate && \
+    conda activate mmdeploy
+
+ENV TENSORRT_DIR=/usr/include/aarch64-linux-gnu
+ENV PATH=$PATH:/usr/local/cuda/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+
+# Install Dependencies for Model Converter
+# MMCV
+WORKDIR $HOME/
+RUN apt-get install -y libssl-dev
+RUN pip install --upgrade pip
+RUN git clone --branch 2.x https://github.com/open-mmlab/mmcv.git && \
+    cd mmcv && \
+    MMCV_WITH_OPS=1 pip install -e .
+
+# ONNX
+RUN pip install onnx==1.10.0
+RUN conda install -c conda-forge onnx
+
+RUN apt-get install -y protobuf-compiler libprotoc-dev
+RUN apt-get install -y pkg-config libhdf5-10* libhdf5-dev
+RUN pip install versioned-hdf5 pycuda
+RUN apt-get install -y libspdlog-dev 
+
+WORKDIR $HOME/ 
+RUN git clone https://github.com/openppl-public/ppl.cv.git && \
+    cd ppl.cv/
+ENV PPLCV_DIR=$(pwd)
+WORKDIR $HOME/ppl.cv/ 
+RUN ./build.sh cuda
+
+# Install MMDeploy
+# RUN echo "TENSORRT_DIR=/usr/include/aarch64-linux-gnu" >> ~/.bashrc
+# RUN echo "PATH=$PATH:/usr/local/cuda/bin" >> ~/.bashrc
+# RUN echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64" >> ~/.bashrc
+# RUN source ~/.bashrc
+ENV TENSORRT_DIR=/usr/include/aarch64-linux-gnu/
+ENV CUDNN_DIR=/usr/include/aarch64-linux-gnu/
+ENV INSTALL_PREFIX=/usr/local/aarch64-linux-gnu
+WORKDIR $HOME/
+RUN git clone -b main --recursive https://github.com/open-mmlab/mmdeploy.git
+WORKDIR $HOME/mmdeploy/
+# RUN git pull && \
+#     git checkout tags/v0.4.0 && \
+#     git submodule update --init --recursive
+RUN mkdir -p build && \
+    cd build && \
+    cmake .. -DMMDEPLOY_TARGET_BACKENDS="trt" && \
+    make -j$(nproc) && make install
+
+# install model converter
+# Install C/C++ Inference SDK
+WORKDIR $HOME/mmdeploy/
+RUN pip install -v -e .
+WORKDIR $HOME/mmdeploy/
+RUN mkdir -p build
+WORKDIR $HOME/mmdeploy/build
+ENV PATH=$PATH:/usr/local/cuda/bin
+ENV PPLCV_DIR=$HOME/ppl.cv
+ENV MMDEPLOY_DIR=$HOME/mmdeploy
+RUN . /root/archiconda3/etc/profile.d/conda.sh && \
+    conda deactivate && \
+    conda activate mmdeploy
+RUN  cmake .. \
+    -DMMDEPLOY_BUILD_SDK=ON \
+    -DMMDEPLOY_BUILD_SDK_PYTHON_API=ON \
+    -DMMDEPLOY_BUILD_EXAMPLES=ON \
+    -DMMDEPLOY_TARGET_DEVICES="cuda;cpu" \
+    -DMMDEPLOY_TARGET_BACKENDS=trt \
+    -DMMDEPLOY_CODEBASES=all \
+    -Dpplcv_DIR=${PPLCV_DIR}/cuda-build/install/lib/cmake/ppl && \
+    make -j$(nproc) && make install
+
+# Clone and build mmdetection
+WORKDIR $HOME/
+RUN git clone -b 3.x https://github.com/open-mmlab/mmdetection.git && \ 
+    cd mmdetection && \
+    pip install -r requirements/build.txt && \
+    pip install -v -e .
+WORKDIR $HOME/
+ADD https://github.com/da13132/mmengine-for-jetson/blob/main/mmengine-0.8.4.zip $HOME/mmengine-0.8.4
+RUN unzip $HOME/mmengine-0.8.4.zip
+RUN cp $HOME/mmengine-0.8.4/mmengine/dist/*.py $HOME/archiconda3/envs/mmdeploy/lib/python3.8/site-packages/mmengine/dist/

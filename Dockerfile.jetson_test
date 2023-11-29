@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1.3
+FROM nvcr.io/nvidia/l4t-ml:r35.2.1-py3
+# The l4t-pytorch docker image contains PyTorch and torchvision pre-installed 
+# in a Python 3 environment to get up & running quickly with PyTorch on Jetson. 
+# These containers support the following releases of JetPack for Jetson Nano, 
+# TX1/TX2, Xavier NX, AGX Xavier, AGX Orin, and Orin NX
+
+LABEL maintainer ana.milas@fer.hr
+
+# Set environment variables
+ARG HOME=/root
+
+# Install system dependencies
+# Install all the things to stop docker build from breaking
+RUN ln -fs /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && \
+    apt-get update && apt-get install -q -y \
+    git \
+    sudo \
+    lsb-release \
+    gnupg2 \
+    apt-utils \
+    dialog \
+    curl \
+    ca-certificates \
+    bzip2 \
+    libx11-6 \
+    tzdata && \
+    dpkg-reconfigure --frontend noninteractive tzdata

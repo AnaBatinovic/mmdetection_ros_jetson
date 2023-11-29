@@ -1,10 +1,10 @@
 #!/bin/bash
 
-DOCKERFILE=Dockerfile.jetson
-IMAGE_NAME=mmdetection_ros_jetson
+DOCKERFILE=Dockerfile.jetson_orin
+IMAGE_NAME=mmdetection_jetson_orin
 
-distro="bionic"
-ros_distro="melodic"
+distro="focal"
+ros_distro="noetic"
 build_args=""
 for (( i=1; i<=$#; i++));
 do
