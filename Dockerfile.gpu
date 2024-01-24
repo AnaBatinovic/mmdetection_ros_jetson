@@ -1,0 +1,104 @@
+# syntax=docker/dockerfile:1.3
+ARG PYTORCH="1.9.0"
+ARG CUDA="11.1"
+ARG CUDNN="8"
+
+FROM pytorch/pytorch:${PYTORCH}-cuda${CUDA}-cudnn${CUDNN}-devel
+
+LABEL maintainer ana.milas@fer.hr
+
+# Avoid Public GPG key error
+# https://github.com/NVIDIA/nvidia-docker/issues/1631
+RUN rm /etc/apt/sources.list.d/cuda.list \
+    && rm /etc/apt/sources.list.d/nvidia-ml.list \
+    && apt-key del 7fa2af80 \
+    && apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub \
+    && apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
+
+# (Optional, use Mirror to speed up downloads)
+# RUN sed -i 's/http:\/\/archive.ubuntu.com\/ubuntu\//http:\/\/mirrors.aliyun.com\/ubuntu\//g' /etc/apt/sources.list && \
+#    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+ARG CATKIN_WORKSPACE=uav_ws
+ARG ROS_DISTRO=melodic
+ARG HOME=/root
+
+# Install all the things to stop docker build from breaking
+RUN ln -fs /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && \
+    apt-get update && apt-get install -q -y \
+    git \
+    sudo \
+    lsb-release \
+    gnupg2 \
+    apt-utils \
+    dialog \
+    curl \
+    ca-certificates \
+    bzip2 \
+    libx11-6 \
+    tzdata && \
+    dpkg-reconfigure --frontend noninteractive tzdata
+
+# Install ROS
+RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/dependencies/ros.sh | bash
+# Install General ROS things
+RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/dependencies/general.sh | bash
+
+# Install Realsense specific dependencies
+RUN apt-get update && \
+    apt-get install -y \
+        openssh-server \
+        libmysqlclient-dev \
+        ros-$ROS_DISTRO-realsense2-camera \
+        ros-$ROS_DISTRO-rgbd-launch \
+        ros-$ROS_DISTRO-realsense2-description \
+        libglew-dev \
+        libglfw3 \
+        libglfw3-dev \
+        software-properties-common \
+        libnvidia-gl-440 \
+        nano \
+        tmux \
+        git-gui
+
+# Set realsense rules
+RUN curl https://raw.githubusercontent.com/IntelRealSense/librealsense/master/config/99-realsense-libusb.rules >> /etc/udev/rules.d/99-realsense-libusb.rules
+
+# Agent forwarding during docker build https://stackoverflow.com/questions/43418188/ssh-agent-forwarding-during-docker-build
+# install ssh client and git
+RUN apt-get install openssh-client git
+
+# Download public key for github.com
+RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+# Install workspace
+RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/workspace_setup.sh | bash -s $CATKIN_WORKSPACE
+
+ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0 7.5 8.0 8.6+PTX" \
+    TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
+    CMAKE_PREFIX_PATH="$(dirname $(which conda))/../" \
+    FORCE_CUDA="1"
+
+# Install the required packages
+RUN apt-get update \
+    && apt-get install -y ffmpeg libsm6 libxext6 git ninja-build libglib2.0-0 libsm6 libxrender-dev libxext6 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MMEngine and MMCV
+RUN pip install openmim && \
+    mim install "mmengine>=0.7.1" "mmcv==2.0.0rc4"
+
+# Install MMDetection
+RUN conda clean --all
+RUN --mount=type=ssh git clone git@github.com:AnaBatinovic/mmdetection.git /mmdetection \
+    && cd /mmdetection \
+    && git checkout icuas24 \
+    && pip install --no-cache-dir -e .
+
+# Clone and build other packages
+WORKDIR $HOME/$CATKIN_WORKSPACE/src
+RUN --mount=type=ssh git clone git@github.com:AnaBatinovic/mmros_wrapper.git
+RUN bash -c "catkin build"
+
+RUN pip3 install rospkg
