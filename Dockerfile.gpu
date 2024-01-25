@@ -39,10 +39,10 @@ RUN ln -fs /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && \
     tzdata && \
     dpkg-reconfigure --frontend noninteractive tzdata
 
-# Install ROS
-RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/dependencies/ros.sh | bash
-# Install General ROS things
-RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/dependencies/general.sh | bash
+# Install ROS 
+COPY ./to_copy/ .
+RUN ./ros.sh
+RUN ./general.sh
 
 # Install Realsense specific dependencies
 RUN apt-get update && \
