@@ -39,10 +39,10 @@ RUN ln -fs /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && \
     tzdata && \
     dpkg-reconfigure --frontend noninteractive tzdata
 
-# Install ROS
-RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/dependencies/ros.sh | bash
-# Install General ROS things
-RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/dependencies/general.sh | bash
+# Install ROS 
+COPY ./to_copy/ .
+RUN ./ros.sh
+RUN ./general.sh
 
 # Install Realsense specific dependencies
 RUN apt-get update && \
@@ -72,7 +72,7 @@ RUN apt-get install openssh-client git
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 # Install workspace
-RUN curl https://raw.githubusercontent.com/larics/uav_ros_stack/main/installation/workspace_setup.sh | bash -s $CATKIN_WORKSPACE
+RUN ./workspace_setup.sh $CATKIN_WORKSPACE
 
 ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0 7.5 8.0 8.6+PTX" \
     TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
@@ -113,3 +113,5 @@ RUN git clone --single-branch melodic-v1.2.4 https://github.com/fkie/multimaster
 RUN bash -c "catkin_build" 
 
 RUN pip3 install rospkg
+
+CMD ["bash"] 
