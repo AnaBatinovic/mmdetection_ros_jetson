@@ -102,6 +102,7 @@ RUN --mount=type=ssh git clone git@github.com:AnaBatinovic/mmros_wrapper.git
 RUN bash -c "catkin build"
 
 # Multimaster fkie #TODO: Add argument if multistage needed
+RUN conda install -c conda-forge netifaces
 RUN add-apt-repository ppa:roehling/grpc 
 RUN apt-get update -y 
 RUN apt-get install -y \ 
