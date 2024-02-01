@@ -101,4 +101,15 @@ WORKDIR $HOME/$CATKIN_WORKSPACE/src
 RUN --mount=type=ssh git clone git@github.com:AnaBatinovic/mmros_wrapper.git
 RUN bash -c "catkin build"
 
+# Multimaster fkie #TODO: Add argument if multistage needed
+RUN add-apt-repository ppa:roehling/grpc 
+RUN apt-get update -y 
+RUN apt-get install -y \ 
+    grpc \
+    python-grpc-tools \
+    protobuf 
+WOKRKDIR $HOME/$CATKIN_WORKSPACE/src
+RUN git clone --single-branch melodic-v1.2.4 https://github.com/fkie/multimaster_fkie.git 
+RUN bash -c "catkin_build" 
+
 RUN pip3 install rospkg
