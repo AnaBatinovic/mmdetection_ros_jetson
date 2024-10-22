@@ -166,10 +166,17 @@ RUN  cmake .. \
     -Dpplcv_DIR=${PPLCV_DIR}/cuda-build/install/lib/cmake/ppl && \
     make -j$(nproc) && make install
 
+# Test if this speeds things up? 
+ENV MAKEFLAGS="-j$(nproc)"
 # Build mmpose --> this works 
-RUN pip install -U openmim
-RUN mim install mmengine
-RUN mim install "mmcv>=2.0.1"
-RUN mim install "mmpose>=1.1.0" 
+RUN conda activate mmdeploy \
+    pip3 install "mmcv==2.01" \
+    pip3 install "mmdet==3.1.0" \
+    pip3 install "mmpose==1.1.0" 
+
+#RUN pip install -U openmim
+#RUN mim install mmengine
+#RUN mim install "mmcv>=2.0.1"
+#RUN mim install "mmpose>=1.1.0" 
 
 CMD ["bash"] 
