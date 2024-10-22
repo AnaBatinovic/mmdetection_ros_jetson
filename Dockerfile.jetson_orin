@@ -126,8 +126,9 @@ RUN ./build.sh cuda
 # Install MMDeploy
 # RUN echo "TENSORRT_DIR=/usr/include/aarch64-linux-gnu" >> ~/.bashrc
 # RUN echo "PATH=$PATH:/usr/local/cuda/bin" >> ~/.bashrc
-# RUN echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64" >> ~/.bashrc
+RUN echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64" >> ~/.bashrc
 # RUN source ~/.bashrc
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
 ENV TENSORRT_DIR=/usr/include/aarch64-linux-gnu/
 ENV CUDNN_DIR=/usr/include/aarch64-linux-gnu/
 ENV INSTALL_PREFIX=/usr/local/aarch64-linux-gnu
