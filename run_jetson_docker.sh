@@ -1,0 +1,41 @@
+docker run \
+  --runtime nvidia \
+  -it \
+  --network host \
+  --shm-size=8g \
+  --volume /tmp/argus_socket:/tmp/argus_socket \
+  --volume /etc/enctune.conf:/etc/enctune.conf \
+  --volume /etc/nv_tegra_release:/etc/nv_tegra_release \
+  --volume /tmp/nv_jetson_model:/tmp/nv_jetson_model \
+  --volume /var/run/dbus:/var/run/dbus \
+  --volume /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  --volume /home/xavier/Work/jetson-containers/data:/data \
+  --device /dev/snd \
+  --device /dev/bus/usb \
+  -e DISPLAY=:1 \
+  -v /tmp/.X11-unix/:/tmp/.X11-unix \
+  -v /tmp/.docker.xauth:/tmp/.docker.xauth \
+  -e XAUTHORITY=/tmp/.docker.xauth \
+  --device /dev/video0 \
+  --device /dev/video1 \
+  --device /dev/i2c-0 \
+  --device /dev/i2c-1 \
+  --device /dev/i2c-2 \
+  --device /dev/i2c-3 \
+  --device /dev/i2c-4 \
+  --device /dev/i2c-5 \
+  --device /dev/i2c-6 \
+  --device /dev/i2c-7 \
+  --device /dev/i2c-8 \
+  --device /dev/i2c-9 \
+  --env SSH_AUTH_SOCK=/ssh-agent \
+  --env display=$display \
+  --env TERM=xterm-256color \
+  --env XAUTHORITY=${XAUTH} \
+  --volume /etc/group:/etc/group:ro \
+  --env="QT_X11_NO_MITSHM=1" \
+  --cap-add=SYS_PTRACE \
+  -v /run/jtop.sock:/run/jtop.sock \
+  --name mmdet_jetson_cont \
+  mmdet_img:latest

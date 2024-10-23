@@ -47,13 +47,17 @@ RUN . /root/archiconda3/etc/profile.d/conda.sh && \
     conda create -y -n mmdeploy python=${PYTHON_VERSION} && \
     conda activate mmdeploy
 
-ENV PATH=$HOME/archiconda3/bin:$PATH
+# Source conda through whole Dockerfile 
+RUN echo "source activate mmdeploy" > ~/.bashrc	
+#ENV PATH=$HOME/archiconda3/bin/:$PATH
+ENV PATH=/opt/conda/envs/mmdeploy/bin:$PATH
 ENV OPENBLAS_CORETYPE=ARMV8
 # RUN conda --version 
 # Pytorch 1.13 and torchvision 0.14.0 (see compatible versions https://pypi.org/project/torchvision/)
 WORKDIR $HOME/
 RUN wget https://developer.download.nvidia.com/compute/redist/jp/v502/pytorch/torch-1.13.0a0+d0d6b1f2.nv22.10-cp38-cp38-linux_aarch64.whl
 RUN pip3 install torch-1.13.0a0+d0d6b1f2.nv22.10-cp38-cp38-linux_aarch64.whl
+RUN python3 -c "import sys; print(sys.path); import torch; print(torch.cuda.is_available())"
 RUN sudo apt-get install -q -y \
     libjpeg-dev \
     zlib1g-dev \
@@ -172,6 +176,12 @@ RUN git clone -b 3.x https://github.com/open-mmlab/mmdetection.git && \
     pip install -r requirements/build.txt && \
     pip install -v -e .
 WORKDIR $HOME/
-ADD https://github.com/da13132/mmengine-for-jetson/blob/main/mmengine-0.8.4.zip $HOME/mmengine-0.8.4
-RUN unzip $HOME/mmengine-0.8.4.zip
-RUN cp $HOME/mmengine-0.8.4/mmengine/dist/*.py $HOME/archiconda3/envs/mmdeploy/lib/python3.8/site-packages/mmengine/dist/
+RUN apt-get install -y --no-install-recommends \
+    unzip \
+    zip
+RUN git clone https://github.com/da13132/mmengine-for-jetson.git
+WORKDIR $HOME/mmengine-for-jetson
+RUN unzip mmengine-0.8.4.zip 
+#RUN cp -r $HOME/mmengine-for-jetson/mmengine-0.8.4/mmengine/dist/*.py $HOME/archiconda3/envs/mmdeploy/lib/python3.8/site-packages/mmengine/dist/
+
+CMD ["bash"]
